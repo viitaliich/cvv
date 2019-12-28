@@ -4,81 +4,205 @@
 #include <vector>
 #include <climits>
 
+class AST{
+private:
+    std::string type;
+    std::string func_name;
+    int inum;
+
+public:
+
+    // set
+    void set_type(std::string value){
+        type = value;
+    }
+    void set_func_name(std::string value){
+        func_name = value;
+    }
+    void set_inum(int value){
+        inum = value;
+    }
+
+    // check
+    std::string check_type(){
+        return type;
+    }
+    std::string check_func_name(){
+        return func_name;
+    }
+    int check_inum(){
+        return inum;
+    }
+
+    void print_ast(){
+        std::cout << type << std::endl;
+        std::cout << func_name << std::endl;
+        std::cout << inum << std::endl;
+        std::cout << "***" << std::endl;
+    }
+};
+
 typedef std::vector<std::pair<std::string, std::string>> tokens_t;
 
 bool find_str_vec(const std::string& key, const std::vector<std::string>& vector);
 void out_tokens(const tokens_t& tokens);
 std::string read_file(const std::string& file_location);
 tokens_t lexer(const std::string& input);
-void parser(const tokens_t& tokens);
+std::vector<AST> parser(const tokens_t& tokens);
+void to_asm(std::vector<AST>& ast);
 
-int parse_function(const tokens_t& tokens, size_t current);
-int parse_statement(tokens_t tokens, size_t current);
+class Parser{
+private:
+    size_t current;
+    std::vector<AST> nodes;
+
+public:
+    void push_node(AST node){
+        nodes.emplace_back(node);
+    }
+
+    size_t out_cur(){
+        return current;
+    }
+
+    void inc_cur(){
+        current++;
+    }
+
+    std::vector<AST> out_ast(){
+        return nodes;
+    }
+
+    Parser(){
+        current = 0;
+    }
+
+public:
+    void parse_expr(tokens_t tokens){
+        inc_cur();
+        if (tokens[current].first != "I_NUM"){
+            std::cout << "Illegal return value" << std::endl;
+            exit(0);
+        }
+        AST node;
+        node.set_type("constant");
+        node.set_inum(std::stoi(tokens[current].second));
+        push_node(node);
+    }
+
+    void parse_ret(tokens_t tokens){
+        parse_expr(tokens);
+
+        inc_cur();
+        if (tokens[current].first != "SEMI"){
+            std::cout << "No semicolon at the end of the statement" << std::endl;
+            exit(0);
+        }
+    }
+    void parse_statement(tokens_t tokens){
+        inc_cur();
+        if (tokens[current].first != "RETURN"){
+            std::cout << "Error at function return" << std::endl;
+            exit(0);
+        }
+        parse_ret(tokens);
+
+        AST node;
+        node.set_type("ret");
+        push_node(node);
+    }
+
+    void parse_function(const tokens_t& tokens){
+        if (tokens[current].first != "KEYWORD"){
+            std::cout << "Wrong type at function declaration" << std::endl;
+            exit(0);
+        }
+
+        inc_cur();
+        if (tokens[current].first != "IDENTIFIER"){
+            std::cout << "Illegal name of function" << std::endl;
+            exit(0);
+        }
+
+        AST node;
+        node.set_type("function_call");
+        node.set_func_name(tokens[current].second);
+        push_node(node);
+
+        inc_cur();
+        if (tokens[current].first != "O_PRN"){
+            std::cout << "No open parentheses at function declaration" << std::endl;
+            exit(0);
+        }
+
+        inc_cur();
+        if (tokens[current].first != "C_PRN"){
+            std::cout << "No close parentheses at function declaration" << std::endl;
+            exit(0);
+        }
+
+        inc_cur();
+        if (tokens[current].first != "O_BRACE"){
+            std::cout << "No open brace at function declaration" << std::endl;
+            exit(0);
+        }
+
+        parse_statement(tokens);
+
+        inc_cur();
+        if (tokens[current].first != "C_BRACE"){
+            std::cout << "No close brace at function declaration" << std::endl;
+            exit(0);
+        }
+    }
+};
 
 int main (int argc, char ** argv){
     std::string input = read_file(R"(D:\Winderton\Compiler_cvv\return2.txt)");
     tokens_t tokens = lexer(input);
-    out_tokens(tokens);
-    parser(tokens);
+//    out_tokens(tokens);
+    std::vector<AST> nodes = parser(tokens);
+//    for (int i = 0; i < nodes.size(); i++){
+//        nodes[i].print_ast();
+//    }
+    to_asm(nodes);
     return 0;
 }
 
-int parse_statement(tokens_t tokens, size_t current){
-    if (tokens[++current].first != "RETURN"){
-        std::cout << "Error at function return" << std::endl;
-        exit(0);
-    }
-    if (tokens[++current].first != "I_NUM"){
-        std::cout << "Illegal return value" << std::endl;
-        exit(0);
-    }
-    if (tokens[++current].first != "SEMI"){
-        std::cout << "No semicolon at the end of the statement" << std::endl;
-        exit(0);
-    }
-    return current;
-}
+void to_asm(std::vector<AST>& ast){
+    // File where assembly code is written to.
+    FILE *pfile;
+    pfile = fopen("asm.txt", "w");
 
-int parse_function(const tokens_t& tokens, size_t current){
-    if (tokens[current].first != "KEYWORD"){
-        std::cout << "Wrong type at function declaration" << std::endl;
-        exit(0);
-    }
-    if (tokens[++current].first != "IDENTIFIER"){
-        std::cout << "Illegal name of function" << std::endl;
-        exit(0);
-    }
-    if (tokens[++current].first != "O_PRN"){
-        std::cout << "No open parentheses at function declaration" << std::endl;
-        exit(0);
-    }
-    if (tokens[++current].first != "C_PRN"){
-        std::cout << "No close parentheses at function declaration" << std::endl;
-        exit(0);
-    }
-    if (tokens[++current].first != "O_BRACE"){
-        std::cout << "No open brace at function declaration" << std::endl;
-        exit(0);
-    }
-
-    current = parse_statement(tokens, current);
-
-    if (tokens[++current].first != "C_BRACE"){
-        std::cout << "No close brace at function declaration" << std::endl;
-        exit(0);
-    }
-
-    return current;
-}
-
-void parser(const tokens_t& tokens){
     size_t current = 0;
-    while (current < tokens.size()-1){
-
-        current = parse_function(tokens, current);
-        current++;
+    while (current < ast.size()){
+        if (ast[current].check_type() == "function_call"){
+            fprintf(pfile, "%s:\n", ast[current].check_func_name().c_str());
+            current++;
+            continue;
+        }
+        if (ast[current].check_type() == "constant"){
+            fprintf(pfile, "\tmov eax, %d\n", ast[current].check_inum());
+            current++;
+            continue;
+        }
+        if (ast[current].check_type() == "ret"){
+            fprintf(pfile, "\tret\n");
+            current++;
+            continue;
+        }
     }
+    fclose(pfile);
+}
 
+std::vector<AST> parser(const tokens_t& tokens){
+    Parser parser;
+    while (parser.out_cur() < tokens.size()-1){
+        parser.parse_function(tokens);
+        parser.inc_cur();
+    }
+    std::vector<AST> nodes = parser.out_ast();
+    return nodes;
 }
 
 tokens_t lexer(const std::string& input){
