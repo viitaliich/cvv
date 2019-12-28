@@ -11,8 +11,12 @@ private:
     int inum;
 
 public:
-
-    // set
+    AST(){
+        type = "";
+        func_name = "";
+        inum = 0;
+    }
+    // set AST fields
     void set_type(std::string value){
         type = value;
     }
@@ -23,7 +27,7 @@ public:
         inum = value;
     }
 
-    // check
+    // check AST fields
     std::string check_type(){
         return type;
     }
@@ -34,6 +38,7 @@ public:
         return inum;
     }
 
+    // Print AST node to console
     void print_ast(){
         std::cout << type << std::endl;
         std::cout << func_name << std::endl;
@@ -43,13 +48,14 @@ public:
 };
 
 typedef std::vector<std::pair<std::string, std::string>> tokens_t;
-
-bool find_str_vec(const std::string& key, const std::vector<std::string>& vector);
-void out_tokens(const tokens_t& tokens);
-std::string read_file(const std::string& file_location);
 tokens_t lexer(const std::string& input);
 std::vector<AST> parser(const tokens_t& tokens);
 void to_asm(std::vector<AST>& ast);
+std::string read_file(const std::string& file_location);
+
+bool find_str_vec(const std::string& key, const std::vector<std::string>& vector);
+void out_tokens(const tokens_t& tokens);
+
 
 class Parser{
 private:
@@ -57,10 +63,12 @@ private:
     std::vector<AST> nodes;
 
 public:
-    void push_node(AST node){
+    // Push node to AST
+    void push_node(const AST& node){
         nodes.emplace_back(node);
     }
 
+    // Take values of AST fields
     size_t out_cur(){
         return current;
     }
@@ -78,19 +86,21 @@ public:
     }
 
 public:
-    void parse_expr(tokens_t tokens){
+    void parse_expr(const tokens_t& tokens){
         inc_cur();
         if (tokens[current].first != "I_NUM"){
             std::cout << "Illegal return value" << std::endl;
             exit(0);
         }
+
+        // Create AST node.
         AST node;
         node.set_type("constant");
         node.set_inum(std::stoi(tokens[current].second));
         push_node(node);
     }
 
-    void parse_ret(tokens_t tokens){
+    void parse_ret(const tokens_t& tokens){
         parse_expr(tokens);
 
         inc_cur();
@@ -99,7 +109,7 @@ public:
             exit(0);
         }
     }
-    void parse_statement(tokens_t tokens){
+    void parse_statement(const tokens_t& tokens){
         inc_cur();
         if (tokens[current].first != "RETURN"){
             std::cout << "Error at function return" << std::endl;
@@ -123,7 +133,6 @@ public:
             std::cout << "Illegal name of function" << std::endl;
             exit(0);
         }
-
         AST node;
         node.set_type("function_call");
         node.set_func_name(tokens[current].second);
