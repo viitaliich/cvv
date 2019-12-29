@@ -5,28 +5,38 @@
 #include <climits>
 
 enum tokens_list{
-    O_PRN,
-    C_PRN,
-    O_BRACE,
-    C_BRACE,
-    SEMI,
-    KEYWORD,
-    RETURN,
-    IDENTIFIER,
-    I_NUM,
-    ENDOFFILE
+    O_PRN,          //0
+    C_PRN,          //1
+    O_BRACE,        //2
+    C_BRACE,        //3
+    SEMI,           //4
+    KEYWORD,        //5
+    RETURN,         //6
+    IDENTIFIER,     //7
+    I_NUM,          //8
+    ENDOFFILE,      //9
+    ANEG,           //10
+    COMPLEMENT,     //11
+    LNEG,           //12
+    ADD,            //13
+    MUL,            //14
+    DIV             //15
 };
 
 enum types_list {
     FUNC_DECL,
     CONSTATNT,
-    RET
+    RET,
+    UN_OP,
+    BI_OP
 };
 class AST{
 private:
     int type;
     std::string func_name;
+    std::string op;
     int inum;
+    int inum_r;
 
 public:
     AST(){
@@ -41,8 +51,14 @@ public:
     void set_func_name(std::string value){
         func_name = value;
     }
+    void set_op(std::string value){
+        op = value;
+    }
     void set_inum(int value){
         inum = value;
+    }
+    void set_inum_r(int value){
+        inum_r = value;
     }
 
     // check AST fields
@@ -51,6 +67,9 @@ public:
     }
     std::string check_func_name(){
         return func_name;
+    }
+    std::string check_op(){
+        return op;
     }
     int check_inum(){
         return inum;
@@ -95,6 +114,10 @@ public:
         current++;
     }
 
+    void dec_cur(){
+        current--;
+    }
+
     std::vector<AST> out_ast(){
         return nodes;
     }
@@ -104,29 +127,95 @@ public:
     }
 
 public:
-    void parse_expr(const tokens_t& tokens){
-        inc_cur();
-        if (tokens[current].first != I_NUM){
-            std::cout << "Illegal return value" << std::endl;
-            exit(0);
+    void parse_factor(const tokens_t& tokens){
+//        inc_cur();
+        if (tokens[current].first == I_NUM){
+            // Create AST node.
+            AST node;
+            node.set_type(CONSTATNT);
+            node.set_inum(std::stoi(tokens[current].second));
+            push_node(node);
+            return;
         }
 
-        // Create AST node.
-        AST node;
-        node.set_type(CONSTATNT);
-        node.set_inum(std::stoi(tokens[current].second));
-        push_node(node);
+        if (tokens[current].first == ANEG || tokens[current].first == LNEG || tokens[current].first == COMPLEMENT){
+            AST node;
+            node.set_type(UN_OP);
+            node.set_op(tokens[current].second);
+
+            parse_factor(tokens);
+
+            push_node(node);
+
+            return;
+        }
+
+        if (tokens[current].first == O_PRN){
+            parse_expr(tokens);
+            inc_cur();
+            if (tokens[current].first != C_PRN){
+                std::cout << "No pair to open parentheses\n";
+                exit(0);
+            }
+//            dec_cur();
+            return;
+        }
+
+        std::cout << "Illegal value" << std::endl;
+        exit(0);
+    }
+
+    void parse_term(const tokens_t& tokens){
+//        inc_cur();
+
+        parse_factor(tokens);
+        inc_cur();
+        while (tokens[current].first == MUL || tokens[current].first == DIV){
+
+            AST node;
+            node.set_type(BI_OP);
+            node.set_op(tokens[current].second);
+//            dec_cur();
+            inc_cur();
+            parse_factor(tokens);
+            push_node(node);
+//            parse_term(tokens);
+        }
+//        else{
+//            dec_cur();
+//        }
+        dec_cur();
+
+    }
+
+    void parse_expr(const tokens_t& tokens){
+        inc_cur();
+
+        parse_term(tokens);
+        inc_cur();
+        while (tokens[current].first == ADD || tokens[current].first == ANEG){
+
+            AST node;
+            node.set_type(BI_OP);
+            node.set_op(tokens[current].second);
+//            dec_cur();
+            inc_cur();
+            parse_term(tokens);
+            push_node(node);
+            inc_cur();
+//            parse_expr(tokens);
+        }
+//        else {
+//            dec_cur();
+//        }
+        dec_cur();
+
     }
 
     void parse_ret(const tokens_t& tokens){
         parse_expr(tokens);
-
-        inc_cur();
-        if (tokens[current].first != SEMI){
-            std::cout << "No semicolon at the end of the statement" << std::endl;
-            exit(0);
-        }
     }
+
     void parse_statement(const tokens_t& tokens){
         inc_cur();
         if (tokens[current].first != RETURN){
@@ -138,6 +227,12 @@ public:
         AST node;
         node.set_type(RET);
         push_node(node);
+
+        inc_cur();
+        if (tokens[current].first != SEMI){
+            std::cout << "No semicolon at the end of the statement" << std::endl;
+            exit(0);
+        }
     }
 
     void parse_function(const tokens_t& tokens){
@@ -185,10 +280,10 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\return2.txt)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage3_tests\valid\associativity.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
-//    out_tokens(tokens);
+    out_tokens(tokens);
     std::vector<AST> nodes = parser(tokens);
     std::cout << "Parser: no errors\n";
 //    for (int i = 0; i < nodes.size(); i++){
@@ -214,6 +309,7 @@ void to_asm(std::vector<AST>& ast){
 
             case CONSTATNT:
                 fprintf(pfile, "\tmov eax, %d\n", ast[current].check_inum());
+                fprintf(pfile, "\tpush eax\n");
                 current++;
                 break;
 
@@ -221,6 +317,68 @@ void to_asm(std::vector<AST>& ast){
                 fprintf(pfile, "\tret\n");
                 current++;
                 break;
+
+            case UN_OP:
+                if (ast[current].check_op() == "-"){
+                    fprintf(pfile, "\tneg eax\n");
+                    current++;
+                    break;
+                }
+                if (ast[current].check_op() == "!"){
+                    fprintf(pfile, "\tcmp eax, 0\n");      //set ZF on if exp == 0, set it off otherwise
+                    fprintf(pfile, "\tmov eax, 0\n");     // zero out EAX (doesn't change FLAGS)
+                    fprintf(pfile, "\tsete al\n");          //set AL register (the lower byte of EAX) to 1 if ZF is on
+                    current++;
+                    break;
+                }
+                if (ast[current].check_op() == "~"){
+                    fprintf(pfile, "\tnot eax\n");
+                    current++;
+                    break;
+                }
+
+            case BI_OP:
+                if (ast[current].check_op() == "+"){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tadd eax, ecx\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "*"){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\timul eax, ecx\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "-"){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tsub eax, ecx\n");
+                    fprintf(pfile, "\tpush eax\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "/"){
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcdq\n");
+                    fprintf(pfile, "\tidiv ecx\n");
+                    fprintf(pfile, "\tmov eax, ecx\n");
+                    current++;
+                    break;
+                }
+
+            default:
+                std::cout << "BI_ERROR";
+                exit(0);
         }
     }
     fclose(pfile);
@@ -320,6 +478,60 @@ tokens_t lexer(const std::string& input){
             continue;
         }
 
+        // Addition
+        if (symbol == '+'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(ADD, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Multiplication
+        if (symbol == '*'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(MUL, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Division
+        if (symbol == '/'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(DIV, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Arithmetical negation
+        if (symbol == '-'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(ANEG, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Logical negation
+        if (symbol == '!'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(LNEG, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Bitwise complement
+        if (symbol == '~'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(COMPLEMENT, value);
+            symbol = input[++current];
+            continue;
+        }
+
         // Keywords and Identifiers
         if (std::isalpha(symbol)){
             std::string value;
@@ -366,7 +578,7 @@ tokens_t lexer(const std::string& input){
         }
 
         // Illegal symbols
-        if (symbol == '~' || symbol == '`' || symbol == '@' || symbol == '#' || symbol == '$' || symbol == '?' ||
+        if (symbol == '`' || symbol == '@' || symbol == '#' || symbol == '$' || symbol == '?' ||
             symbol == '\\' || symbol == '_'){
             std::cout << "Illegal symbol " << symbol << std::endl;
             exit(0);
