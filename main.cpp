@@ -4,20 +4,38 @@
 #include <vector>
 #include <climits>
 
+enum tokens_list{
+    O_PRN,
+    C_PRN,
+    O_BRACE,
+    C_BRACE,
+    SEMI,
+    KEYWORD,
+    RETURN,
+    IDENTIFIER,
+    I_NUM,
+    ENDOFFILE
+};
+
+enum types_list {
+    FUNC_DECL,
+    CONSTATNT,
+    RET
+};
 class AST{
 private:
-    std::string type;
+    int type;
     std::string func_name;
     int inum;
 
 public:
     AST(){
-        type = "";
+        type = INT_MAX;
         func_name = "";
         inum = 0;
     }
     // set AST fields
-    void set_type(std::string value){
+    void set_type(int value){
         type = value;
     }
     void set_func_name(std::string value){
@@ -28,7 +46,7 @@ public:
     }
 
     // check AST fields
-    std::string check_type(){
+    int check_type(){
         return type;
     }
     std::string check_func_name(){
@@ -55,19 +73,6 @@ std::string read_file(const std::string& file_location);
 
 bool find_str_vec(const std::string& key, const std::vector<std::string>& vector);
 void out_tokens(const tokens_t& tokens);
-
-enum tokens_list{
-    O_PRN,
-    C_PRN,
-    O_BRACE,
-    C_BRACE,
-    SEMI,
-    KEYWORD,
-    RETURN,
-    IDENTIFIER,
-    I_NUM,
-    ENDOFFILE
-};
 
 
 class Parser{
@@ -108,7 +113,7 @@ public:
 
         // Create AST node.
         AST node;
-        node.set_type("constant");
+        node.set_type(CONSTATNT);
         node.set_inum(std::stoi(tokens[current].second));
         push_node(node);
     }
@@ -131,7 +136,7 @@ public:
         parse_ret(tokens);
 
         AST node;
-        node.set_type("ret");
+        node.set_type(RET);
         push_node(node);
     }
 
@@ -147,7 +152,7 @@ public:
             exit(0);
         }
         AST node;
-        node.set_type("function_call");
+        node.set_type(FUNC_DECL);
         node.set_func_name(tokens[current].second);
         push_node(node);
 
@@ -201,20 +206,21 @@ void to_asm(std::vector<AST>& ast){
 
     size_t current = 0;
     while (current < ast.size()){
-        if (ast[current].check_type() == "function_call"){
-            fprintf(pfile, "%s:\n", ast[current].check_func_name().c_str());
-            current++;
-            continue;
-        }
-        if (ast[current].check_type() == "constant"){
-            fprintf(pfile, "\tmov eax, %d\n", ast[current].check_inum());
-            current++;
-            continue;
-        }
-        if (ast[current].check_type() == "ret"){
-            fprintf(pfile, "\tret\n");
-            current++;
-            continue;
+        switch (ast[current].check_type()){
+            case FUNC_DECL:
+                fprintf(pfile, "%s:\n", ast[current].check_func_name().c_str());
+                current++;
+                break;
+
+            case CONSTATNT:
+                fprintf(pfile, "\tmov eax, %d\n", ast[current].check_inum());
+                current++;
+                break;
+
+            case RET:
+                fprintf(pfile, "\tret\n");
+                current++;
+                break;
         }
     }
     fclose(pfile);
