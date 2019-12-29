@@ -47,7 +47,7 @@ public:
     }
 };
 
-typedef std::vector<std::pair<std::string, std::string>> tokens_t;
+typedef std::vector<std::pair<int, std::string>> tokens_t;
 tokens_t lexer(const std::string& input);
 std::vector<AST> parser(const tokens_t& tokens);
 void to_asm(std::vector<AST>& ast);
@@ -55,6 +55,19 @@ std::string read_file(const std::string& file_location);
 
 bool find_str_vec(const std::string& key, const std::vector<std::string>& vector);
 void out_tokens(const tokens_t& tokens);
+
+enum tokens_list{
+    O_PRN,
+    C_PRN,
+    O_BRACE,
+    C_BRACE,
+    SEMI,
+    KEYWORD,
+    RETURN,
+    IDENTIFIER,
+    I_NUM,
+    ENDOFFILE
+};
 
 
 class Parser{
@@ -88,7 +101,7 @@ public:
 public:
     void parse_expr(const tokens_t& tokens){
         inc_cur();
-        if (tokens[current].first != "I_NUM"){
+        if (tokens[current].first != I_NUM){
             std::cout << "Illegal return value" << std::endl;
             exit(0);
         }
@@ -104,14 +117,14 @@ public:
         parse_expr(tokens);
 
         inc_cur();
-        if (tokens[current].first != "SEMI"){
+        if (tokens[current].first != SEMI){
             std::cout << "No semicolon at the end of the statement" << std::endl;
             exit(0);
         }
     }
     void parse_statement(const tokens_t& tokens){
         inc_cur();
-        if (tokens[current].first != "RETURN"){
+        if (tokens[current].first != RETURN){
             std::cout << "Error at function return" << std::endl;
             exit(0);
         }
@@ -123,13 +136,13 @@ public:
     }
 
     void parse_function(const tokens_t& tokens){
-        if (tokens[current].first != "KEYWORD"){
+        if (tokens[current].first != KEYWORD){
             std::cout << "Wrong type at function declaration" << std::endl;
             exit(0);
         }
 
         inc_cur();
-        if (tokens[current].first != "IDENTIFIER"){
+        if (tokens[current].first != IDENTIFIER){
             std::cout << "Illegal name of function" << std::endl;
             exit(0);
         }
@@ -139,19 +152,19 @@ public:
         push_node(node);
 
         inc_cur();
-        if (tokens[current].first != "O_PRN"){
+        if (tokens[current].first != O_PRN){
             std::cout << "No open parentheses at function declaration" << std::endl;
             exit(0);
         }
 
         inc_cur();
-        if (tokens[current].first != "C_PRN"){
+        if (tokens[current].first != C_PRN){
             std::cout << "No close parentheses at function declaration" << std::endl;
             exit(0);
         }
 
         inc_cur();
-        if (tokens[current].first != "O_BRACE"){
+        if (tokens[current].first != O_BRACE){
             std::cout << "No open brace at function declaration" << std::endl;
             exit(0);
         }
@@ -159,7 +172,7 @@ public:
         parse_statement(tokens);
 
         inc_cur();
-        if (tokens[current].first != "C_BRACE"){
+        if (tokens[current].first != C_BRACE){
             std::cout << "No close brace at function declaration" << std::endl;
             exit(0);
         }
@@ -169,12 +182,15 @@ public:
 int main (int argc, char ** argv){
     std::string input = read_file(R"(D:\Winderton\Compiler_cvv\return2.txt)");
     tokens_t tokens = lexer(input);
+    std::cout << "Lexer: no errors\n";
 //    out_tokens(tokens);
     std::vector<AST> nodes = parser(tokens);
+    std::cout << "Parser: no errors\n";
 //    for (int i = 0; i < nodes.size(); i++){
 //        nodes[i].print_ast();
 //    }
     to_asm(nodes);
+    std::cout << "Done\n";
     return 0;
 }
 
@@ -215,8 +231,10 @@ std::vector<AST> parser(const tokens_t& tokens){
 }
 
 tokens_t lexer(const std::string& input){
+
     const std::vector<std::string> keywords = {"int"};    // the list of keywords
     const std::vector<std::string> key_return = {"return"};    // return keyword
+
 
     size_t current = 0;     //for tracking our position in the code
     tokens_t tokens;        //list of tokens
@@ -255,7 +273,7 @@ tokens_t lexer(const std::string& input){
         if (symbol == '('){
             std::string value;
             value += symbol;
-            tokens.emplace_back("O_PRN", value);
+            tokens.emplace_back(O_PRN, value);
             symbol = input[++current];
             continue;
         }
@@ -264,7 +282,7 @@ tokens_t lexer(const std::string& input){
         if (symbol == ')'){
             std::string value;
             value += symbol;
-            tokens.emplace_back("C_PRN", value);
+            tokens.emplace_back(C_PRN, value);
             symbol = input[++current];
             continue;
         }
@@ -273,7 +291,7 @@ tokens_t lexer(const std::string& input){
         if (symbol == '{'){
             std::string value;
             value += symbol;
-            tokens.emplace_back("O_BRACE", value);
+            tokens.emplace_back(O_BRACE, value);
             symbol = input[++current];
             continue;
         }
@@ -282,7 +300,7 @@ tokens_t lexer(const std::string& input){
         if (symbol == '}'){
             std::string value;
             value += symbol;
-            tokens.emplace_back("C_BRACE", value);
+            tokens.emplace_back(C_BRACE, value);
             symbol = input[++current];
             continue;
         }
@@ -291,7 +309,7 @@ tokens_t lexer(const std::string& input){
         if (symbol == ';'){
             std::string value;
             value += symbol;
-            tokens.emplace_back("SEMI", value);
+            tokens.emplace_back(SEMI, value);
             symbol = input[++current];
             continue;
         }
@@ -306,15 +324,15 @@ tokens_t lexer(const std::string& input){
                 symbol = input[++current];
             }
             if (find_str_vec(value, keywords)){
-                tokens.emplace_back("KEYWORD", value);
+                tokens.emplace_back(KEYWORD, value);
                 continue;
             }
             if (find_str_vec(value, key_return)) {
-                tokens.emplace_back("RETURN", value);
+                tokens.emplace_back(RETURN, value);
                 continue;
             }
             if (!find_str_vec(value, keywords) && !find_str_vec(value, key_return)) {
-                tokens.emplace_back("IDENTIFIER", value);
+                tokens.emplace_back(IDENTIFIER, value);
                 continue;
             }
         }
@@ -336,7 +354,7 @@ tokens_t lexer(const std::string& input){
                 std::cout << "Wrong identifier " << value << std::endl;
                 exit(0);
             } else {
-                tokens.emplace_back("I_NUM", value);
+                tokens.emplace_back(I_NUM, value);
                 continue;
             }
         }
@@ -352,7 +370,7 @@ tokens_t lexer(const std::string& input){
 
     }
 
-    tokens.emplace_back("EOF", "EOF");
+    tokens.emplace_back(ENDOFFILE, "EOF");
 
     return tokens;
 }
