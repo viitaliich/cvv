@@ -128,7 +128,7 @@ public:
 
 public:
     void parse_factor(const tokens_t& tokens){
-//        inc_cur();
+        inc_cur();
         if (tokens[current].first == I_NUM){
             // Create AST node.
             AST node;
@@ -143,6 +143,7 @@ public:
             node.set_type(UN_OP);
             node.set_op(tokens[current].second);
 
+//            dec_cur();
             parse_factor(tokens);
 
             push_node(node);
@@ -166,8 +167,9 @@ public:
     }
 
     void parse_term(const tokens_t& tokens){
-//        inc_cur();
+        inc_cur();
 
+        dec_cur();
         parse_factor(tokens);
         inc_cur();
         while (tokens[current].first == MUL || tokens[current].first == DIV){
@@ -176,9 +178,10 @@ public:
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
 //            dec_cur();
-            inc_cur();
+//            inc_cur();
             parse_factor(tokens);
             push_node(node);
+            inc_cur();
 //            parse_term(tokens);
         }
 //        else{
@@ -189,7 +192,7 @@ public:
     }
 
     void parse_expr(const tokens_t& tokens){
-        inc_cur();
+//        inc_cur();
 
         parse_term(tokens);
         inc_cur();
@@ -199,7 +202,7 @@ public:
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
 //            dec_cur();
-            inc_cur();
+//            inc_cur();
             parse_term(tokens);
             push_node(node);
             inc_cur();
@@ -280,7 +283,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage3_tests\valid\associativity.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage3_tests\valid\add.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -320,19 +323,25 @@ void to_asm(std::vector<AST>& ast){
 
             case UN_OP:
                 if (ast[current].check_op() == "-"){
+                    fprintf(pfile, "\tpop eax\n");
                     fprintf(pfile, "\tneg eax\n");
+                    fprintf(pfile, "\tpush eax\n");
                     current++;
                     break;
                 }
                 if (ast[current].check_op() == "!"){
+                    fprintf(pfile, "\tpop eax\n");
                     fprintf(pfile, "\tcmp eax, 0\n");      //set ZF on if exp == 0, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");     // zero out EAX (doesn't change FLAGS)
                     fprintf(pfile, "\tsete al\n");          //set AL register (the lower byte of EAX) to 1 if ZF is on
+                    fprintf(pfile, "\tpush eax\n");
                     current++;
                     break;
                 }
                 if (ast[current].check_op() == "~"){
+                    fprintf(pfile, "\tpop eax\n");
                     fprintf(pfile, "\tnot eax\n");
+                    fprintf(pfile, "\tpush eax\n");
                     current++;
                     break;
                 }
@@ -343,6 +352,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tpop ecx\n");
                     fprintf(pfile, "\tpop eax\n");
                     fprintf(pfile, "\tadd eax, ecx\n");
+                    fprintf(pfile, "\tpush eax\n");
                     current++;
                     break;
                 }
@@ -352,6 +362,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tpop ecx\n");
                     fprintf(pfile, "\tpop eax\n");
                     fprintf(pfile, "\timul eax, ecx\n");
+                    fprintf(pfile, "\tpush eax\n");
                     current++;
                     break;
                 }
@@ -371,7 +382,8 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tpop eax\n");
                     fprintf(pfile, "\tcdq\n");
                     fprintf(pfile, "\tidiv ecx\n");
-                    fprintf(pfile, "\tmov eax, ecx\n");
+//                    fprintf(pfile, "\tmov eax, ecx\n");
+                    fprintf(pfile, "\tpush eax\n");
                     current++;
                     break;
                 }
