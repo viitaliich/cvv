@@ -20,7 +20,15 @@ enum tokens_list{
     LNEG,           //12
     ADD,            //13
     MUL,            //14
-    DIV             //15
+    DIV,            //15
+    AND,            //16
+    OR,             //17
+    EQU,            //18
+    NEQU,           //19
+    LESS,           //20
+    LESSEQU,        //21
+    GREAT,          //22
+    GREATEQU        //23
 };
 
 enum types_list {
@@ -283,7 +291,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage3_tests\valid\add.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\return2.txt)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -490,6 +498,105 @@ tokens_t lexer(const std::string& input){
             continue;
         }
 
+        // Logical AND
+        if (symbol == '&'){
+            std::string value;
+            value += symbol;
+            symbol = input[++current];
+            while (symbol == '&'){
+                value += symbol;
+                symbol = input[++current];
+            }
+            if (value == "&&"){
+                tokens.emplace_back(AND, value);
+            }
+            continue;
+        }
+
+        // Logical OR
+        if (symbol == '|'){
+            std::string value;
+            value += symbol;
+            symbol = input[++current];
+            while (symbol == '|'){
+                value += symbol;
+                symbol = input[++current];
+            }
+            if (value == "||"){
+                tokens.emplace_back(OR, value);
+            }
+            continue;
+        }
+
+        // Equal to
+        if (symbol == '='){
+            std::string value;
+            value += symbol;
+            symbol = input[++current];
+            while (symbol == '='){
+                value += symbol;
+                symbol = input[++current];
+            }
+            if (value == "=="){
+                tokens.emplace_back(EQU, value);
+            }
+            continue;
+        }
+
+        // Not Equal to, Logical negation
+        if (symbol == '!'){
+            std::string value;
+            value += symbol;
+            symbol = input[++current];
+            while (symbol == '='){
+                value += symbol;
+                symbol = input[++current];
+            }
+            if (value == "!="){
+                tokens.emplace_back(NEQU, value);
+            }
+            if (value == "!"){
+                tokens.emplace_back(LNEG, value);
+            }
+            continue;
+        }
+
+        // Lesser Equal then
+        if (symbol == '<'){
+            std::string value;
+            value += symbol;
+            symbol = input[++current];
+            while (symbol == '='){
+                value += symbol;
+                symbol = input[++current];
+            }
+            if (value == "<="){
+                tokens.emplace_back(LESSEQU, value);
+            }
+            if (value == "<"){
+                tokens.emplace_back(LESS, value);
+            }
+            continue;
+        }
+
+        // Greater Equal then
+        if (symbol == '>'){
+            std::string value;
+            value += symbol;
+            symbol = input[++current];
+            while (symbol == '='){
+                value += symbol;
+                symbol = input[++current];
+            }
+            if (value == ">="){
+                tokens.emplace_back(GREATEQU, value);
+            }
+            if (value == ">"){
+                tokens.emplace_back(GREAT, value);
+            }
+            continue;
+        }
+
         // Addition
         if (symbol == '+'){
             std::string value;
@@ -522,15 +629,6 @@ tokens_t lexer(const std::string& input){
             std::string value;
             value += symbol;
             tokens.emplace_back(ANEG, value);
-            symbol = input[++current];
-            continue;
-        }
-
-        // Logical negation
-        if (symbol == '!'){
-            std::string value;
-            value += symbol;
-            tokens.emplace_back(LNEG, value);
             symbol = input[++current];
             continue;
         }
