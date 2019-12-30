@@ -199,9 +199,10 @@ public:
 
     }
 
-    void parse_expr(const tokens_t& tokens){
-//        inc_cur();
+    void parse_additive(const tokens_t& tokens){
+        inc_cur();
 
+        dec_cur();
         parse_term(tokens);
         inc_cur();
         while (tokens[current].first == ADD || tokens[current].first == ANEG){
@@ -212,6 +213,108 @@ public:
 //            dec_cur();
 //            inc_cur();
             parse_term(tokens);
+            push_node(node);
+            inc_cur();
+//            parse_term(tokens);
+        }
+//        else{
+//            dec_cur();
+//        }
+        dec_cur();
+
+    }
+
+    void parse_relational(const tokens_t& tokens){
+        inc_cur();
+
+        dec_cur();
+        parse_additive(tokens);
+        inc_cur();
+        while (tokens[current].first == LESS || tokens[current].first == LESSEQU ||
+                tokens[current].first == GREAT || tokens[current].first == GREATEQU){
+
+            AST node;
+            node.set_type(BI_OP);
+            node.set_op(tokens[current].second);
+//            dec_cur();
+//            inc_cur();
+            parse_term(tokens);
+            push_node(node);
+            inc_cur();
+//            parse_term(tokens);
+        }
+//        else{
+//            dec_cur();
+//        }
+        dec_cur();
+
+    }
+
+    void parse_equ(const tokens_t& tokens){
+        inc_cur();
+
+        dec_cur();
+        parse_relational(tokens);
+        inc_cur();
+        while (tokens[current].first == NEQU || tokens[current].first == EQU){
+
+            AST node;
+            node.set_type(BI_OP);
+            node.set_op(tokens[current].second);
+//            dec_cur();
+//            inc_cur();
+            parse_relational(tokens);
+            push_node(node);
+            inc_cur();
+//            parse_term(tokens);
+        }
+//        else{
+//            dec_cur();
+//        }
+        dec_cur();
+
+    }
+
+    void parse_log_and(const tokens_t& tokens){
+        inc_cur();
+
+        dec_cur();
+        parse_equ(tokens);
+        inc_cur();
+        while (tokens[current].first == AND){
+
+            AST node;
+            node.set_type(BI_OP);
+            node.set_op(tokens[current].second);
+//            dec_cur();
+//            inc_cur();
+            parse_equ(tokens);
+            push_node(node);
+            inc_cur();
+//            parse_term(tokens);
+        }
+//        else{
+//            dec_cur();
+//        }
+        dec_cur();
+
+    }
+
+
+
+    void parse_expr(const tokens_t& tokens){
+//        inc_cur();
+
+        parse_log_and(tokens);
+        inc_cur();
+        while (tokens[current].first == OR){
+
+            AST node;
+            node.set_type(BI_OP);
+            node.set_op(tokens[current].second);
+//            dec_cur();
+//            inc_cur();
+            parse_log_and(tokens);
             push_node(node);
             inc_cur();
 //            parse_expr(tokens);
@@ -291,7 +394,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\return2.txt)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage4_tests\valid\skip_on_failure_multi_short_circuit.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -309,6 +412,8 @@ void to_asm(std::vector<AST>& ast){
     // File where assembly code is written to.
     FILE *pfile;
     pfile = fopen("asm.txt", "w");
+
+    int label = 0;
 
     size_t current = 0;
     while (current < ast.size()){
@@ -342,7 +447,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, 0\n");      //set ZF on if exp == 0, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");     // zero out EAX (doesn't change FLAGS)
                     fprintf(pfile, "\tsete al\n");          //set AL register (the lower byte of EAX) to 1 if ZF is on
-                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpush al\n");
                     current++;
                     break;
                 }
@@ -355,6 +460,118 @@ void to_asm(std::vector<AST>& ast){
                 }
 
             case BI_OP:
+                if (ast[current].check_op() == "=="){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
+                    fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
+                    fprintf(pfile, "\tsete al\n");          //set AL if ZF is on
+                    fprintf(pfile, "\tpush al\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "!="){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
+                    fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
+                    fprintf(pfile, "\tsetne al\n");          //set AL if ZF is on
+                    fprintf(pfile, "\tpush al\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "<"){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
+                    fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
+                    fprintf(pfile, "\tsetl al\n");          //set AL if ZF is on
+                    fprintf(pfile, "\tpush al\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == ">"){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
+                    fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
+                    fprintf(pfile, "\tsetg al\n");          //set AL if SF is on
+                    fprintf(pfile, "\tpush al\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "<="){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
+                    fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
+                    fprintf(pfile, "\tsetle al\n");          //set AL if SF is on
+                    fprintf(pfile, "\tpush al\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == ">="){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
+                    fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
+                    fprintf(pfile, "\tsetge al\n");          //set AL if SF is on
+                    fprintf(pfile, "\tpush al\n");
+                    current++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "||"){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, 0\n");           //check if e1 is true
+                    fprintf(pfile, "\tje label%d\n", label);    //e1 is 0, so we need to evaluate clause 2
+                    fprintf(pfile, "\tmov eax, 1\n");
+                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tjmp end_label%d\n", label);
+                    fprintf(pfile, "\tlabel%d:\n", label);
+                    fprintf(pfile, "\tmov eax, ecx\n");
+                    fprintf(pfile, "\tcmp eax, 0\n");
+                    fprintf(pfile, "\tmov eax, 0\n");           //zero out EAX
+                    fprintf(pfile, "\tsetne al\n");             //set AL if e2 != 0
+                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tend_label%d:\n", label);
+                    current++;
+                    label++;
+                    break;
+                }
+
+                if (ast[current].check_op() == "&&"){
+//                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tpop ecx\n");
+                    fprintf(pfile, "\tpop eax\n");
+                    fprintf(pfile, "\tcmp eax, 0\n");           //check if e1 is true
+                    fprintf(pfile, "\tjne label%d\n", label);    //e1 is not 0, so we need to evaluate clause 2
+                    fprintf(pfile, "\tjmp end_label%d\n", label);
+                    fprintf(pfile, "\tlabel%d:\n", label);
+                    fprintf(pfile, "\tmov eax, ecx\n");
+                    fprintf(pfile, "\tcmp eax, 0\n");           //check if e2 is true
+                    fprintf(pfile, "\tmov eax, 0\n");           //zero out EAX
+                    fprintf(pfile, "\tsetne al\n");             //set AL if e2 != 0
+                    fprintf(pfile, "\tpush eax\n");
+                    fprintf(pfile, "\tend_label%d:\n", label);
+                    current++;
+                    label++;
+                    break;
+                }
+
                 if (ast[current].check_op() == "+"){
 //                    fprintf(pfile, "\tpush eax\n");
                     fprintf(pfile, "\tpop ecx\n");
