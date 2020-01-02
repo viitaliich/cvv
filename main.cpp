@@ -33,14 +33,15 @@ enum tokens_list{
 
 enum types_list {
     FUNC_DECL,
-    CONSTATNT,
+    CONSTANT,
     RET,
     UN_OP,
     BI_OP
 };
+
 class AST{
 private:
-    int type;
+    int type;                   // node type
     std::string func_name;
     std::string op;
     int inum;
@@ -50,7 +51,9 @@ public:
     AST(){
         type = INT_MAX;
         func_name = "";
+        op = "";
         inum = 0;
+        inum_r = 0;
     }
     // set AST fields
     void set_type(int value){
@@ -81,6 +84,9 @@ public:
     }
     int check_inum(){
         return inum;
+    }
+    int check_inum_r(){
+        return inum_r;
     }
 
     // Print AST node to console
@@ -113,7 +119,6 @@ public:
         nodes.emplace_back(node);
     }
 
-    // Take values of AST fields
     size_t out_cur(){
         return current;
     }
@@ -136,11 +141,10 @@ public:
 
 public:
     void parse_factor(const tokens_t& tokens){
-        inc_cur();
         if (tokens[current].first == I_NUM){
             // Create AST node.
             AST node;
-            node.set_type(CONSTATNT);
+            node.set_type(CONSTANT);
             node.set_inum(std::stoi(tokens[current].second));
             push_node(node);
             return;
@@ -150,23 +154,20 @@ public:
             AST node;
             node.set_type(UN_OP);
             node.set_op(tokens[current].second);
-
-//            dec_cur();
+            inc_cur();
             parse_factor(tokens);
-
             push_node(node);
-
             return;
         }
 
         if (tokens[current].first == O_PRN){
+            inc_cur();
             parse_expr(tokens);
             inc_cur();
             if (tokens[current].first != C_PRN){
                 std::cout << "No pair to open parentheses\n";
                 exit(0);
             }
-//            dec_cur();
             return;
         }
 
@@ -175,167 +176,112 @@ public:
     }
 
     void parse_term(const tokens_t& tokens){
-        inc_cur();
-
-        dec_cur();
         parse_factor(tokens);
         inc_cur();
         while (tokens[current].first == MUL || tokens[current].first == DIV){
-
             AST node;
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
-//            dec_cur();
-//            inc_cur();
+            inc_cur();
             parse_factor(tokens);
             push_node(node);
             inc_cur();
-//            parse_term(tokens);
         }
-//        else{
-//            dec_cur();
-//        }
         dec_cur();
-
     }
 
     void parse_additive(const tokens_t& tokens){
-        inc_cur();
-
-        dec_cur();
         parse_term(tokens);
         inc_cur();
         while (tokens[current].first == ADD || tokens[current].first == ANEG){
-
             AST node;
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
-//            dec_cur();
-//            inc_cur();
+            inc_cur();
             parse_term(tokens);
             push_node(node);
             inc_cur();
-//            parse_term(tokens);
         }
-//        else{
-//            dec_cur();
-//        }
         dec_cur();
-
     }
 
     void parse_relational(const tokens_t& tokens){
-        inc_cur();
-
-        dec_cur();
         parse_additive(tokens);
         inc_cur();
         while (tokens[current].first == LESS || tokens[current].first == LESSEQU ||
                 tokens[current].first == GREAT || tokens[current].first == GREATEQU){
-
             AST node;
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
-//            dec_cur();
-//            inc_cur();
-            parse_term(tokens);
+            inc_cur();
+            parse_additive(tokens);             // ??? term
             push_node(node);
             inc_cur();
-//            parse_term(tokens);
         }
-//        else{
-//            dec_cur();
-//        }
         dec_cur();
-
     }
 
     void parse_equ(const tokens_t& tokens){
-        inc_cur();
-
-        dec_cur();
         parse_relational(tokens);
         inc_cur();
         while (tokens[current].first == NEQU || tokens[current].first == EQU){
-
             AST node;
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
-//            dec_cur();
-//            inc_cur();
+            inc_cur();
             parse_relational(tokens);
             push_node(node);
             inc_cur();
-//            parse_term(tokens);
         }
-//        else{
-//            dec_cur();
-//        }
         dec_cur();
-
     }
 
     void parse_log_and(const tokens_t& tokens){
-        inc_cur();
-
-        dec_cur();
         parse_equ(tokens);
         inc_cur();
         while (tokens[current].first == AND){
-
             AST node;
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
-//            dec_cur();
-//            inc_cur();
+            inc_cur();                              //???
             parse_equ(tokens);
             push_node(node);
             inc_cur();
-//            parse_term(tokens);
         }
-//        else{
-//            dec_cur();
-//        }
         dec_cur();
-
     }
 
-
-
     void parse_expr(const tokens_t& tokens){
-//        inc_cur();
-
         parse_log_and(tokens);
         inc_cur();
         while (tokens[current].first == OR){
-
             AST node;
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
-//            dec_cur();
-//            inc_cur();
+            inc_cur();
             parse_log_and(tokens);
             push_node(node);
             inc_cur();
-//            parse_expr(tokens);
         }
-//        else {
-//            dec_cur();
-//        }
         dec_cur();
-
     }
 
     void parse_ret(const tokens_t& tokens){
-        parse_expr(tokens);
-    }
-
-    void parse_statement(const tokens_t& tokens){
-        inc_cur();
+        dec_cur();
         if (tokens[current].first != RETURN){
             std::cout << "Error at function return" << std::endl;
             exit(0);
         }
+        inc_cur();
+        parse_expr(tokens);
+    }
+
+    void parse_statement(const tokens_t& tokens){
+        if (tokens[current].first != RETURN){
+            std::cout << "Error at function return" << std::endl;
+            exit(0);
+        }
+        inc_cur();
         parse_ret(tokens);
 
         AST node;
@@ -354,8 +300,8 @@ public:
             std::cout << "Wrong type at function declaration" << std::endl;
             exit(0);
         }
-
         inc_cur();
+
         if (tokens[current].first != IDENTIFIER){
             std::cout << "Illegal name of function" << std::endl;
             exit(0);
@@ -364,28 +310,28 @@ public:
         node.set_type(FUNC_DECL);
         node.set_func_name(tokens[current].second);
         push_node(node);
-
         inc_cur();
+
         if (tokens[current].first != O_PRN){
             std::cout << "No open parentheses at function declaration" << std::endl;
             exit(0);
         }
-
         inc_cur();
+
         if (tokens[current].first != C_PRN){
             std::cout << "No close parentheses at function declaration" << std::endl;
             exit(0);
         }
-
         inc_cur();
+
         if (tokens[current].first != O_BRACE){
             std::cout << "No open brace at function declaration" << std::endl;
             exit(0);
         }
-
-        parse_statement(tokens);
-
         inc_cur();
+        parse_statement(tokens);
+        inc_cur();
+
         if (tokens[current].first != C_BRACE){
             std::cout << "No close brace at function declaration" << std::endl;
             exit(0);
@@ -394,7 +340,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage4_tests\valid\skip_on_failure_multi_short_circuit.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage4_tests\valid\precedence_4.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -423,7 +369,7 @@ void to_asm(std::vector<AST>& ast){
                 current++;
                 break;
 
-            case CONSTATNT:
+            case CONSTANT:
                 fprintf(pfile, "\tmov eax, %d\n", ast[current].check_inum());
                 fprintf(pfile, "\tpush eax\n");
                 current++;
@@ -952,4 +898,3 @@ bool find_str_vec(const std::string& key, const std::vector<std::string>& vector
         return true;
     } else return false;
 }
-
