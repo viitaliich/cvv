@@ -3,6 +3,9 @@
 #include <iostream>
 #include <vector>
 #include <climits>
+#include <stack>
+
+#define LABEL_OFFSET 1000
 
 enum tokens_list{
     O_PRN,          //0
@@ -29,7 +32,11 @@ enum tokens_list{
     LESSEQU,        //21
     GREAT,          //22
     GREATEQU,       //23
-    ASSIGN          //24
+    ASSIGN,         //24
+    QUESTION,       //25
+    COLON,          //26
+    IF,             //27
+    ELSE            //28
 };
 
 enum types_list {
@@ -40,7 +47,13 @@ enum types_list {
     BI_OP,          //4
     VARREF,         //5
     VARASSIGN,      //6
-    VARDECL         //7
+    VARDECL,        //7
+    COND_QUEST,     //8
+    COND_COLON,     //9
+    COND_END,       //10
+    IF_ELSE,        //11
+    IF_BODY,        //12
+    IF_END          //13
 };
 
 class AST{
@@ -186,7 +199,7 @@ public:
         if (tokens[current].first == O_PRN){
             inc_cur();
             parse_expr(tokens);
-            inc_cur();
+            //inc_cur();
             if (tokens[current].first != C_PRN){
                 std::cout << "No pair to open parentheses\n";
                 exit(0);
@@ -237,7 +250,7 @@ public:
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
             inc_cur();
-            parse_additive(tokens);             // ??? term
+            parse_additive(tokens);
             push_node(node);
             inc_cur();
         }
@@ -266,7 +279,7 @@ public:
             AST node;
             node.set_type(BI_OP);
             node.set_op(tokens[current].second);
-            inc_cur();                              //???
+            inc_cur();
             parse_equ(tokens);
             push_node(node);
             inc_cur();
@@ -289,6 +302,34 @@ public:
         dec_cur();
     }
 
+    void parse_conditional(const tokens_t& tokens){
+        parse_log_or(tokens);
+
+        inc_cur();
+        if (tokens[current].first == QUESTION){
+            AST node_cond_quest;
+            node_cond_quest.set_type(COND_QUEST);
+            push_node(node_cond_quest);
+
+            inc_cur();
+            parse_expr(tokens);
+            //inc_cur();
+            if (tokens[current].first != COLON){
+                std::cout << "No colon in ternary expression" << std::endl;
+                exit(0);
+            }
+            AST node_cond_colon;
+            node_cond_colon.set_type(COND_COLON);
+            push_node(node_cond_colon);
+
+            inc_cur();
+            parse_conditional(tokens);
+
+            AST node_cond_end;
+            node_cond_end.set_type(COND_END);
+            push_node(node_cond_end);
+        }
+    }
     void parse_expr(const tokens_t& tokens){
         AST node;
         node.set_type(VARASSIGN);
@@ -309,7 +350,7 @@ public:
             push_node(node_ref);
         } else {
             dec_cur();
-            parse_log_or(tokens);
+            parse_conditional(tokens);
         }
     }
 
@@ -317,9 +358,9 @@ public:
         if (tokens[current].first == RETURN){
             inc_cur();
             parse_expr(tokens);
-            inc_cur();
+            //inc_cur();
             if (tokens[current].first != SEMI){
-                std::cout << "No semicolon at the end of the statement" << std::endl;
+                std::cout << "No semicolon at the end of the statement1" << std::endl;
                 exit(0);
             }
             AST node;
@@ -328,6 +369,70 @@ public:
             return;
         }
 
+        // Variable assignment
+        if (tokens[current].first == IDENTIFIER || tokens[current].first == I_NUM ||
+            tokens[current].first == ANEG || tokens[current].first == LNEG || tokens[current].first == COMPLEMENT ||
+            tokens[current].first == O_PRN){
+            parse_expr(tokens);
+            //inc_cur();
+            if (tokens[current].first != SEMI){
+                std::cout << "No semicolon at the end of the statement2" << std::endl;
+                exit(0);
+            }
+            return;
+        }
+
+        // If - Else
+        if (tokens[current].first == IF){
+            inc_cur();
+            if (tokens[current].first != O_PRN){
+                std::cout << "No open parentheses in IF statement" << std::endl;
+                exit(0);
+            }
+
+            inc_cur();
+            parse_expr(tokens);
+            //inc_cur();
+
+            if (tokens[current].first != C_PRN){
+                std::cout << "No close parentheses in IF statement" << std::endl;
+                exit(0);
+            }
+
+            AST node_if;
+            node_if.set_type(IF_ELSE);
+            push_node(node_if);
+
+            inc_cur();
+            parse_statement(tokens);
+            inc_cur();
+
+            AST node_body;
+            node_body.set_type(IF_BODY);
+            push_node(node_body);
+
+            if (tokens[current].first == ELSE){
+                inc_cur();
+                parse_statement(tokens);
+
+            } else {
+                dec_cur();
+            }
+            AST node_if_end;
+            node_if_end.set_type(IF_END);
+            push_node(node_if_end);
+
+            //dec_cur();      // ???
+            return;
+        }
+
+        std::cout << "Wrong statement" << std::endl;
+        exit(0);
+
+        /*dec_cur();      // in case of no return statement   */
+    }
+
+    void parse_block_item(const tokens_t& tokens){
         // Variable declaration
         if (tokens[current].first == KEYWORD){
             inc_cur();
@@ -338,7 +443,7 @@ public:
             AST node;
             node.set_type(VARDECL);
             node.set_var_name(tokens[current].second);
-            push_node(node);        //???
+            push_node(node);
 
             AST node_assign;
             node_assign.set_type(VARASSIGN);
@@ -349,30 +454,18 @@ public:
                 inc_cur();
                 parse_expr(tokens);
                 push_node(node_assign);
-                inc_cur();
+                //inc_cur();
             }
 //            push_node(node);
 
             if (tokens[current].first != SEMI){
-                std::cout << "No semicolon at the end of the statement" << std::endl;
+                std::cout << "No semicolon at the end of the statement3" << std::endl;
                 exit(0);
             }
             return;
+        } else {
+            parse_statement(tokens);
         }
-
-        // Variable assignment
-        if (tokens[current].first == IDENTIFIER || tokens[current].first == I_NUM ||
-            tokens[current].first == ANEG || tokens[current].first == LNEG || tokens[current].first == COMPLEMENT ||
-            tokens[current].first == O_PRN){
-            parse_expr(tokens);
-            inc_cur();
-            if (tokens[current].first != SEMI){
-                std::cout << "No semicolon at the end of the statement" << std::endl;
-                exit(0);
-            }
-            return;
-        }
-        /*dec_cur();      // in case of no return statement   */
     }
 
     void parse_function(const tokens_t& tokens){
@@ -409,10 +502,10 @@ public:
             exit(0);
         }
         inc_cur();
-        parse_statement(tokens);
+        parse_block_item(tokens);
         inc_cur();
         while (tokens[current].first != C_BRACE){
-            parse_statement(tokens);
+            parse_block_item(tokens);
             inc_cur();
         }
 
@@ -424,7 +517,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage5_tests\valid\assign.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage6_tests\valid\expression\ternary_short_circuit_2.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -446,6 +539,7 @@ void to_asm(std::vector<AST>& ast){
     int label = 0;
     int stack_index = -4;
     dvar_t decl_vars;
+    std::stack<int> labels;
 
     size_t current = 0;
     while (current < ast.size()){
@@ -487,6 +581,58 @@ void to_asm(std::vector<AST>& ast){
                 current++;
                 break;
 
+            case COND_QUEST:
+                fprintf(pfile, "\tpop eax\n");
+                fprintf(pfile, "\tcmp eax, 0\n");
+                fprintf(pfile, "\tje label%d\n", label);
+                labels.push(label);
+                current++;
+                label++;
+                break;
+
+            case COND_COLON:
+                fprintf(pfile, "\tjmp label%d\n", label);
+//                label--;
+                fprintf(pfile, "\tlabel%d:\n", labels.top());
+                labels.pop();
+                labels.push(label);
+                label++;
+                current++;
+                break;
+
+            case COND_END:
+                fprintf(pfile, "\tlabel%d:\n", labels.top());
+                labels.pop();
+                label++;
+                current++;
+                break;
+
+            case IF_ELSE:
+                fprintf(pfile, "\tpop eax\n");
+                fprintf(pfile, "\tcmp eax, 0\n");
+                fprintf(pfile, "\tje label%d\n", label);
+                labels.push(label);
+                current++;
+                label++;
+                break;
+
+            case IF_BODY:
+                fprintf(pfile, "\tjmp label%d\n", label);
+//                label--;
+                fprintf(pfile, "\tlabel%d:\n", labels.top());
+                labels.pop();
+                labels.push(label);
+                label++;
+                current++;
+                break;
+
+            case IF_END:
+                fprintf(pfile, "\tlabel%d:\n", labels.top());
+                labels.pop();
+                label++;
+                current++;
+                break;
+
             case CONSTANT:
                 fprintf(pfile, "\tmov eax, %d\n", ast[current].check_inum());
                 fprintf(pfile, "\tpush eax\n");
@@ -515,7 +661,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, 0\n");      //set ZF on if exp == 0, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");     // zero out EAX (doesn't change FLAGS)
                     fprintf(pfile, "\tsete al\n");          //set AL register (the lower byte of EAX) to 1 if ZF is on
-                    fprintf(pfile, "\tpush al\n");
+                    fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
                     current++;
                     break;
@@ -537,7 +683,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsete al\n");          //set AL if ZF is on
-                    fprintf(pfile, "\tpush al\n");
+                    fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
                     current++;
                     break;
@@ -549,7 +695,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetne al\n");          //set AL if ZF is on
-                    fprintf(pfile, "\tpush al\n");
+                    fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
                     current++;
                     break;
@@ -561,7 +707,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetl al\n");          //set AL if ZF is on
-                    fprintf(pfile, "\tpush al\n");
+                    fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
                     current++;
                     break;
@@ -573,7 +719,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetg al\n");          //set AL if SF is on
-                    fprintf(pfile, "\tpush al\n");
+                    fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
                     current++;
                     break;
@@ -585,7 +731,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetle al\n");          //set AL if SF is on
-                    fprintf(pfile, "\tpush al\n");
+                    fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
                     current++;
                     break;
@@ -597,7 +743,7 @@ void to_asm(std::vector<AST>& ast){
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetge al\n");          //set AL if SF is on
-                    fprintf(pfile, "\tpush al\n");
+                    fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
                     current++;
                     break;
@@ -706,7 +852,6 @@ std::vector<AST> parser(const tokens_t& tokens){
 tokens_t lexer(const std::string& input){
 
     const std::vector<std::string> keywords = {"int"};    // the list of keywords
-    const std::vector<std::string> key_return = {"return"};    // return keyword
 
 
     size_t current = 0;     //for tracking our position in the code
@@ -735,7 +880,7 @@ tokens_t lexer(const std::string& input){
 
         // Comments //...
         if (symbol == '/' && input[current + 1] == '/'){
-            while (symbol != '\n' && symbol != '\r'){       //???
+            while (symbol != '\n' && symbol != '\r'){
                 symbol = input[++current];
             }
             current++;
@@ -774,6 +919,24 @@ tokens_t lexer(const std::string& input){
             std::string value;
             value += symbol;
             tokens.emplace_back(C_BRACE, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Colon
+        if (symbol == ':'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(COLON, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Question mark
+        if (symbol == '?'){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(QUESTION, value);
             symbol = input[++current];
             continue;
         }
@@ -947,14 +1110,20 @@ tokens_t lexer(const std::string& input){
                 tokens.emplace_back(KEYWORD, value);
                 continue;
             }
-            if (find_str_vec(value, key_return)) {
+            if (value == "return") {
                 tokens.emplace_back(RETURN, value);
                 continue;
             }
-            if (!find_str_vec(value, keywords) && !find_str_vec(value, key_return)) {
-                tokens.emplace_back(IDENTIFIER, value);
+            if (value == "if") {
+                tokens.emplace_back(IF, value);
                 continue;
             }
+            if (value == "else") {
+                tokens.emplace_back(ELSE, value);
+                continue;
+            }
+            tokens.emplace_back(IDENTIFIER, value);
+            continue;
         }
 
         // I_Numbers
