@@ -545,7 +545,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage7_tests\valid\nested_scope.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\return2.txt)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -593,7 +593,8 @@ void to_asm(std::vector<AST>& ast){
                     exit(0);
                 }
                 decl_vars.emplace_back(ast[current].check_var_name(), stack_index);
-                //stack_index -= 4;
+                fprintf(pfile, "\tpush 0\n");
+                stack_index -= 4;       // ???
                 current++;
                 break;
 
@@ -626,6 +627,7 @@ void to_asm(std::vector<AST>& ast){
 
             case COND_QUEST:
                 fprintf(pfile, "\tpop eax\n");
+                stack_index += 4;
                 fprintf(pfile, "\tcmp eax, 0\n");
                 fprintf(pfile, "\tje label%d\n", label);
                 labels.push(label);
@@ -652,6 +654,7 @@ void to_asm(std::vector<AST>& ast){
 
             case IF_ELSE:
                 fprintf(pfile, "\tpop eax\n");
+                stack_index += 4;
                 fprintf(pfile, "\tcmp eax, 0\n");
                 fprintf(pfile, "\tje label%d\n", label);
                 labels.push(label);
@@ -693,6 +696,7 @@ void to_asm(std::vector<AST>& ast){
             case UN_OP:
                 if (ast[current].check_op() == "-"){
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tneg eax\n");
                     fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
@@ -701,6 +705,7 @@ void to_asm(std::vector<AST>& ast){
                 }
                 if (ast[current].check_op() == "!"){
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, 0\n");      //set ZF on if exp == 0, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");     // zero out EAX (doesn't change FLAGS)
                     fprintf(pfile, "\tsete al\n");          //set AL register (the lower byte of EAX) to 1 if ZF is on
@@ -711,6 +716,7 @@ void to_asm(std::vector<AST>& ast){
                 }
                 if (ast[current].check_op() == "~"){
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tnot eax\n");
                     fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
@@ -722,7 +728,9 @@ void to_asm(std::vector<AST>& ast){
                 if (ast[current].check_op() == "=="){
 //                    fprintf(pfile, "\tpush eax\n");
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsete al\n");          //set AL if ZF is on
@@ -734,7 +742,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "!="){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetne al\n");          //set AL if ZF is on
@@ -746,7 +756,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "<"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetl al\n");          //set AL if ZF is on
@@ -758,7 +770,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == ">"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetg al\n");          //set AL if SF is on
@@ -770,7 +784,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "<="){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetle al\n");          //set AL if SF is on
@@ -782,7 +798,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == ">="){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, ecx\n");     //set ZF on if e1 == e2, set it off otherwise
                     fprintf(pfile, "\tmov eax, 0\n");       //zero out EAX
                     fprintf(pfile, "\tsetge al\n");          //set AL if SF is on
@@ -794,7 +812,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "||"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, 0\n");           //check if e1 is true
                     fprintf(pfile, "\tje label%d\n", label);    //e1 is 0, so we need to evaluate clause 2
                     fprintf(pfile, "\tmov eax, 1\n");
@@ -816,7 +836,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "&&"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcmp eax, 0\n");           //check if e1 is true
                     fprintf(pfile, "\tjne label%d\n", label);    //e1 is not 0, so we need to evaluate clause 2
                     fprintf(pfile, "\tjmp end_label%d\n", label);
@@ -835,7 +857,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "+"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tadd eax, ecx\n");
                     fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
@@ -845,7 +869,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "*"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\timul eax, ecx\n");
                     fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
@@ -855,7 +881,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "-"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tsub eax, ecx\n");
                     fprintf(pfile, "\tpush eax\n");
                     stack_index -= 4;
@@ -865,7 +893,9 @@ void to_asm(std::vector<AST>& ast){
 
                 if (ast[current].check_op() == "/"){
                     fprintf(pfile, "\tpop ecx\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tpop eax\n");
+                    stack_index += 4;
                     fprintf(pfile, "\tcdq\n");
                     fprintf(pfile, "\tidiv ecx\n");
                     fprintf(pfile, "\tpush eax\n");
