@@ -53,7 +53,9 @@ enum types_list {
     COND_END,       //10
     IF_ELSE,        //11
     IF_BODY,        //12
-    IF_END          //13
+    IF_END,         //13
+    O_BR,           //14
+    C_BR            //15
 };
 
 class AST{
@@ -130,7 +132,7 @@ std::vector<AST> parser(const tokens_t& tokens);
 void to_asm(std::vector<AST>& ast);
 std::string read_file(const std::string& file_location);
 
-int find_var(const std::string& key, const dvar_t& decl_vars);
+std::pair<int, int> find_var(const std::string& key, const dvar_t& decl_vars);
 bool find_str_vec(const std::string& key, const std::vector<std::string>& vector);
 void out_tokens(const tokens_t& tokens);
 
@@ -369,6 +371,25 @@ public:
             return;
         }
 
+        if (tokens[current].first == O_BRACE){
+            AST o_node;
+            o_node.set_type(O_BR);
+            push_node(o_node);
+
+            inc_cur();
+            parse_block_item(tokens);
+            inc_cur();
+            while (tokens[current].first != C_BRACE){
+                parse_block_item(tokens);
+                inc_cur();
+            }
+
+            AST c_node;
+            c_node.set_type(C_BR);
+            push_node(c_node);
+            return;
+        }
+
         // Variable assignment
         if (tokens[current].first == IDENTIFIER || tokens[current].first == I_NUM ||
             tokens[current].first == ANEG || tokens[current].first == LNEG || tokens[current].first == COMPLEMENT ||
@@ -501,6 +522,10 @@ public:
             std::cout << "No open brace at function declaration" << std::endl;
             exit(0);
         }
+        AST o_node;
+        o_node.set_type(O_BR);
+        push_node(o_node);
+
         inc_cur();
         parse_block_item(tokens);
         inc_cur();
@@ -508,6 +533,9 @@ public:
             parse_block_item(tokens);
             inc_cur();
         }
+        AST c_node;
+        c_node.set_type(C_BR);
+        push_node(c_node);
 
 //        if (tokens[current].first != C_BRACE){
 //            std::cout << "No close brace at function declaration" << std::endl;
@@ -517,7 +545,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage6_tests\valid\expression\ternary_short_circuit_2.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage7_tests\valid\nested_scope.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -540,12 +568,27 @@ void to_asm(std::vector<AST>& ast){
     int stack_index = -4;
     dvar_t decl_vars;
     std::stack<int> labels;
+    std::stack<int> size_dv;
 
     size_t current = 0;
     while (current < ast.size()){
         switch (ast[current].check_type()){
+            case O_BR:
+                size_dv.push(decl_vars.size());
+                current++;
+                break;
+
+            case C_BR:
+                while (decl_vars.size() > size_dv.top()){
+                    decl_vars.erase(decl_vars.begin() + decl_vars.size() - 1);
+                }
+                size_dv.pop();
+                current++;
+                break;
+
             case VARDECL:
-                if (find_var(ast[current].check_var_name(), decl_vars) != 0){
+                if (find_var(ast[current].check_var_name(), decl_vars).first != 0 &&
+                    find_var(ast[current].check_var_name(), decl_vars).second >= size_dv.top()){
                     std::cout << "Variable is already defined" << std::endl;
                     exit(0);
                 }
@@ -555,22 +598,22 @@ void to_asm(std::vector<AST>& ast){
                 break;
 
             case VARASSIGN:
-                if (find_var(ast[current].check_var_name(), decl_vars) == 0){
+                if (find_var(ast[current].check_var_name(), decl_vars).first == 0){
                     std::cout << "Variable is not defined1" << std::endl;
                     exit(0);
                 }
-                fprintf(pfile, "\tmov [ebp + %d], eax\n", find_var(ast[current].check_var_name(), decl_vars));
+                fprintf(pfile, "\tmov [ebp + %d], eax\n", find_var(ast[current].check_var_name(), decl_vars).first);
                 current++;
                 break;
 
             case VARREF:
-                if (find_var(ast[current].check_var_name(), decl_vars) == 0){
+                if (find_var(ast[current].check_var_name(), decl_vars).first == 0){
                     std::cout << "Variable is not defined2" << std::endl;
                     exit(0);
                 }
-                fprintf(pfile, "\tmov eax, [ebp + %d]\n", find_var(ast[current].check_var_name(), decl_vars));
+                fprintf(pfile, "\tmov eax, [ebp + %d]\n", find_var(ast[current].check_var_name(), decl_vars).first);
                 fprintf(pfile, "\tpush eax\n");
-                stack_index += 4;
+                stack_index -= 4;
                 current++;
                 break;
 
@@ -1197,11 +1240,16 @@ bool find_str_vec(const std::string& key, const std::vector<std::string>& vector
     } else return false;
 }
 
-int find_var(const std::string& key, const dvar_t& decl_vars){
-    for (size_t i = 0; i < decl_vars.size(); i++){
-        if (key == decl_vars[i].first){
-            return decl_vars[i].second;
+std::pair<int, int> find_var(const std::string& key, const dvar_t& decl_vars){
+    //if (!decl_vars.empty()){
+        size_t i = decl_vars.size()-1;
+        while (i >= 0 && i < decl_vars.size()){
+            if (key == decl_vars[i].first){
+                std::pair<int, int> ret = {decl_vars[i].second, i};
+                return ret;
+            }
+            i --;
         }
-    }
-    return 0;
+    //}
+    return {0, 0};
 }
