@@ -36,7 +36,12 @@ enum tokens_list{
     QUESTION,       //25
     COLON,          //26
     IF,             //27
-    ELSE            //28
+    ELSE,           //28
+    FOR,            //29
+    DO,             //30
+    WHILE,          //31
+    BREAK,          //32
+    CONTINUE        //33
 };
 
 enum types_list {
@@ -55,7 +60,12 @@ enum types_list {
     IF_BODY,        //12
     IF_END,         //13
     O_BR,           //14
-    C_BR            //15
+    C_BR,           //15
+    WHILE_LABEL,    //16
+    WHILE_EXPR,     //17
+    WHILE_END,      //18
+    NEXT,           //19
+    SKIP            //20
 };
 
 class AST{
@@ -146,6 +156,14 @@ public:
     // Push node to AST
     void push_node(const AST& node){
         nodes.emplace_back(node);
+    }
+
+    void pop_node(){
+        nodes.pop_back();
+    }
+
+    AST top_node(){
+        return nodes.back();
     }
 
     size_t out_cur(){
@@ -356,6 +374,14 @@ public:
         }
     }
 
+    void parse_expr_opt(const tokens_t& tokens){
+        if (tokens[current].first == IDENTIFIER || tokens[current].first == I_NUM ||
+            tokens[current].first == ANEG || tokens[current].first == LNEG || tokens[current].first == COMPLEMENT ||
+            tokens[current].first == O_PRN){
+            parse_expr(tokens);
+        } else return;
+    }
+
     void parse_statement(const tokens_t& tokens){
         if (tokens[current].first == RETURN){
             inc_cur();
@@ -400,6 +426,198 @@ public:
                 std::cout << "No semicolon at the end of the statement2" << std::endl;
                 exit(0);
             }
+            return;
+        }
+        if (tokens[current].first == SEMI){
+            return;
+        }
+
+        //For
+        if (tokens[current].first == FOR){
+            inc_cur();
+            if (tokens[current].first != O_PRN){
+                std::cout << "No open parentheses after FOR" << std::endl;
+                exit(0);
+            }
+            inc_cur();
+
+            if (tokens[current].first == KEYWORD){
+                inc_cur();
+                if (tokens[current].first != IDENTIFIER){
+                    std::cout << "Wrong name in variable declaration" << std::endl;
+                    exit(0);
+                }
+                AST node;
+                node.set_type(VARDECL);
+                node.set_var_name(tokens[current].second);
+                push_node(node);
+
+                AST node_assign;
+                node_assign.set_type(VARASSIGN);
+                node_assign.set_var_name(tokens[current].second);
+
+                inc_cur();
+                if (tokens[current].first != ASSIGN){
+                    std::cout << "Error in variable declaration in an initial clause" << std::endl;
+                    exit(0);
+                }
+                inc_cur();
+                parse_expr(tokens);
+                push_node(node_assign);
+                //inc_cur();
+//            push_node(node);
+
+                if (tokens[current].first != SEMI){
+                    std::cout << "No semicolon after initial clause in FOR 1" << std::endl;
+                    exit(0);
+                }
+                //return;
+            } else {
+                parse_expr_opt(tokens);
+                if (tokens[current].first != SEMI){
+                    std::cout << "No semicolon after initial clause in FOR 2" << std::endl;
+                    exit(0);
+                }
+            }
+
+            AST node_while_label;
+            node_while_label.set_type(WHILE_LABEL);
+            push_node(node_while_label);
+
+            inc_cur();
+            parse_expr_opt(tokens);
+            if (tokens[current].first != SEMI){
+                std::cout << "No semicolon after controlling expression in FOR" << std::endl;
+                exit(0);
+            }
+
+            AST node_while_expr;
+            node_while_expr.set_type(WHILE_EXPR);
+            push_node(node_while_expr);
+
+            size_t length = nodes.size();
+
+            inc_cur();
+            parse_expr_opt(tokens);
+            if (tokens[current].first != C_PRN){
+                std::cout << "No close parentheses in FOR statement" << std::endl;
+                exit(0);
+            }
+
+            // swap nodes
+            std::vector<AST> temp;
+            size_t index = 0;
+            length = nodes.size() - length;
+            while (index < length){
+                temp.emplace_back(top_node());
+                pop_node();
+                index++;
+            }
+
+            inc_cur();
+            parse_statement(tokens);
+
+            index = 0;
+            size_t temp_size = temp.size();
+            while (index < temp_size){
+                push_node(temp.back());
+                temp.pop_back();
+                index++;
+            }
+
+            AST node_while_end;
+            node_while_end.set_type(WHILE_END);
+            push_node(node_while_end);
+
+            return;
+        }
+
+        // While
+        if (tokens[current].first == WHILE){
+            inc_cur();
+            if (tokens[current].first != O_PRN){
+                std::cout << "No open parentheses after WHILE" << std::endl;
+                exit(0);
+            }
+            inc_cur();
+
+            AST node_while_label;
+            node_while_label.set_type(WHILE_LABEL);
+            push_node(node_while_label);
+
+            parse_expr(tokens);
+            if (tokens[current].first != C_PRN){
+                std::cout << "No close parentheses in WHILE statement" << std::endl;
+                exit(0);
+            }
+            AST node_while_expr;
+            node_while_expr.set_type(WHILE_EXPR);
+            push_node(node_while_expr);
+
+            inc_cur();
+            parse_statement(tokens);
+
+            AST node_while_end;
+            node_while_end.set_type(WHILE_END);
+            push_node(node_while_end);
+
+            return;
+        }
+
+        // Do
+        if (tokens[current].first == DO){
+            AST node_while_label;
+            node_while_label.set_type(WHILE_LABEL);
+            push_node(node_while_label);
+
+            inc_cur();
+            parse_statement(tokens);
+            inc_cur();
+            if (tokens[current].first != WHILE){
+                std::cout << "No WHILE in DO statement" << std::endl;
+                exit(0);
+            }
+            inc_cur();
+            parse_expr(tokens);
+            if (tokens[current].first != SEMI){
+                std::cout << "No semicolon at the end of the statement 4" << std::endl;
+                exit(0);
+            }
+            AST node_while_expr;
+            node_while_expr.set_type(WHILE_EXPR);
+            push_node(node_while_expr);
+
+            AST node_while_end;
+            node_while_end.set_type(WHILE_END);
+            push_node(node_while_end);
+            return;
+        }
+
+        // Break
+        if (tokens[current].first == BREAK){
+            inc_cur();
+            if (tokens[current].first != SEMI){
+                std::cout << "No semicolon at the end of the statement 5" << std::endl;
+                exit(0);
+            }
+
+            AST node;
+            node.set_type(SKIP);
+            push_node(node);
+            return;
+        }
+
+        // Continue
+        if (tokens[current].first == CONTINUE){
+            inc_cur();
+            if (tokens[current].first != SEMI){
+                std::cout << "No semicolon at the end of the statement 6" << std::endl;
+                exit(0);
+            }
+            AST node;
+            node.set_type(NEXT);
+            push_node(node);
+
             return;
         }
 
@@ -536,16 +754,11 @@ public:
         AST c_node;
         c_node.set_type(C_BR);
         push_node(c_node);
-
-//        if (tokens[current].first != C_BRACE){
-//            std::cout << "No close brace at function declaration" << std::endl;
-//            exit(0);
-//        }
     }
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\return2.txt)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage8_tests\valid\break.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -564,6 +777,8 @@ void to_asm(std::vector<AST>& ast){
     FILE *pfile;
     pfile = fopen("asm.txt", "w");
 
+    int temp;
+    int temp_label;
     int label = 0;
     int stack_index = -4;
     dvar_t decl_vars;
@@ -622,6 +837,45 @@ void to_asm(std::vector<AST>& ast){
                 fprintf(pfile, "%s:\n", ast[current].check_func_name().c_str());
                 fprintf(pfile, "\tpush ebp\n");     //save old value of EBP
                 fprintf(pfile, "\tmov ebp, esp\n"); //current top of stack is bottom of new stack frame
+                current++;
+                break;
+
+            case WHILE_LABEL:
+                fprintf(pfile, "label%d:\n", label);
+                labels.push(label);
+                current++;
+                label++;
+                break;
+
+            case WHILE_EXPR:
+                fprintf(pfile, "\tpop eax\n");
+                stack_index += 4;
+                fprintf(pfile, "\tcmp eax, 0\n");
+                fprintf(pfile, "\tje label%d\n", label);
+                labels.push(label);
+                current++;
+                label++;
+                break;
+
+            case WHILE_END:
+                temp = labels.top();
+                labels.pop();
+                fprintf(pfile, "\tjmp label%d\n", labels.top());
+                labels.pop();
+                fprintf(pfile, "\tlabel%d:\n", temp);
+                current++;
+                break;
+
+            case NEXT:
+                fprintf(pfile, "\tjmp label%d\n", labels.top());
+                current++;
+                break;
+
+            case SKIP:
+                temp_label = labels.top();
+                labels.pop();
+                fprintf(pfile, "\tjmp label%d\n", labels.top());
+                labels.push(temp_label);
                 current++;
                 break;
 
@@ -1193,6 +1447,26 @@ tokens_t lexer(const std::string& input){
             }
             if (value == "else") {
                 tokens.emplace_back(ELSE, value);
+                continue;
+            }
+            if (value == "for") {
+                tokens.emplace_back(FOR, value);
+                continue;
+            }
+            if (value == "do") {
+                tokens.emplace_back(DO, value);
+                continue;
+            }
+            if (value == "while") {
+                tokens.emplace_back(WHILE, value);
+                continue;
+            }
+            if (value == "break") {
+                tokens.emplace_back(BREAK, value);
+                continue;
+            }
+            if (value == "continue") {
+                tokens.emplace_back(CONTINUE, value);
                 continue;
             }
             tokens.emplace_back(IDENTIFIER, value);
