@@ -64,22 +64,28 @@ enum types_list {
     WHILE_EXPR,     //17
     WHILE_END,      //18
     NEXT,           //19
-    SKIP            //20
+    SKIP,           //20
+    FUNC_CALL_VALID,//21
+    FUNC_DECL_VALID //22
 };
 
 class AST{
 private:
     int type;                   // node type
     std::string func_name;
+    std::string func_type;
     std::string var_name;
     std::string op;
+    std::vector <std::string> func_param_types;
     int inum;
     int inum_r;
 
 public:
     AST(){
         type = INT_MAX;
+        func_param_types = {};
         func_name = "";
+        func_type = "";
         var_name = "";
         op = "";
         inum = 0;
@@ -91,6 +97,12 @@ public:
     }
     void set_func_name(std::string value){
         func_name = value;
+    }
+    void set_func_type(std::string value){
+        func_type = value;
+    }
+    void set_func_param_types(std::string value){
+        func_param_types.emplace_back(value);
     }
     void set_var_name(std::string value){
         var_name = value;
@@ -111,6 +123,12 @@ public:
     }
     std::string check_func_name(){
         return func_name;
+    }
+    std::string check_func_type(){
+        return func_type;
+    }
+    size_t check_func_num_param(){
+        return func_param_types.size();
     }
     std::string check_var_name(){
         return var_name;
@@ -141,6 +159,9 @@ std::vector<AST> parser(const tokens_t& tokens);
 void to_asm(std::vector<AST>& ast);
 std::string read_file(const std::string& file_location);
 
+bool find_call_num_param(std::vector<AST> functions, std::string name, int length, int type);
+bool find_func_name(std::vector<AST> functions, std::string key, int type);
+bool find_func_num_param(std::vector<AST> functions, std::string name, int length, int type);
 std::pair<int, int> find_var(const std::string& key, const dvar_t& decl_vars);
 bool find_str_vec(const std::string& key, const std::vector<std::string>& vector);
 void out_tokens(const tokens_t& tokens);
@@ -198,21 +219,28 @@ public:
 
         // Identifier and function call
         if (tokens[current].first == IDENTIFIER){
+            AST valid_node;
+            valid_node.set_type(FUNC_CALL_VALID);
+            valid_node.set_func_name(tokens[current].second);
             inc_cur();
             if (tokens[current].first == O_PRN){
                 inc_cur();
                 if (tokens[current].first != C_PRN){
                     parse_expr(tokens);
+                    valid_node.set_func_param_types("arg");
                     while (tokens[current].first == COMA){
                         inc_cur();
                         parse_expr(tokens);
+                        valid_node.set_func_param_types("arg");
                     }
                     if (tokens[current].first != C_PRN){
                         std::cout << "No close parentheses in function call\n";
                         exit(0);
                     }
+                    push_node(valid_node);
                     return;
                 }
+                push_node(valid_node);
                 return;
             } else {
                 dec_cur();
@@ -733,6 +761,9 @@ public:
             std::cout << "Wrong type at function declaration" << std::endl;
             exit(0);
         }
+        AST valid_node;
+        valid_node.set_type(FUNC_DECL_VALID);
+        valid_node.set_func_type(tokens[current].second);
         inc_cur();
 
         if (tokens[current].first != IDENTIFIER){
@@ -743,6 +774,7 @@ public:
         node.set_type(FUNC_DECL);
         node.set_func_name(tokens[current].second);
         push_node(node);
+        valid_node.set_func_name(tokens[current].second);
         inc_cur();
 
         if (tokens[current].first != O_PRN){
@@ -752,6 +784,7 @@ public:
         inc_cur();
 
         if (tokens[current].first == KEYWORD){
+            valid_node.set_func_param_types(tokens[current].second);
             inc_cur();
 
             if (tokens[current].first != IDENTIFIER){
@@ -766,6 +799,7 @@ public:
                     std::cout << "Wrong type of function parameter" << std::endl;
                     exit(0);
                 }
+                valid_node.set_func_param_types(tokens[current].second);
                 inc_cur();
 
                 if (tokens[current].first != IDENTIFIER){
@@ -775,6 +809,8 @@ public:
                 inc_cur();
             }
         }
+
+        push_node(valid_node);
 
         if (tokens[current].first != C_PRN){
             std::cout << "No close parentheses at function declaration" << std::endl;
@@ -807,7 +843,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage9_tests\valid\variable_as_arg.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage9_tests\invalid\too_many_args.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -833,10 +869,34 @@ void to_asm(std::vector<AST>& ast){
     dvar_t decl_vars;
     std::stack<int> labels;
     std::stack<int> size_dv;
+    std::vector<AST> functions;
 
     size_t current = 0;
     while (current < ast.size()){
         switch (ast[current].check_type()){
+            case FUNC_DECL_VALID:
+                if (find_func_name(functions, ast[current].check_func_name(), ast[current].check_type())){
+                    std::cout << "2 definitions of the same function name" << std::endl;
+                    exit(0);
+                }
+
+                if (find_func_num_param(functions, ast[current].check_func_name(), ast[current].check_func_num_param(), ast[current].check_type())){
+                    std::cout << "2 declaration have different number of parameters" << std::endl;
+                    exit(0);
+                }
+
+                functions.emplace_back(ast[current]);
+                current++;
+                break;
+
+            case FUNC_CALL_VALID:
+                if (find_call_num_param(functions, ast[current].check_func_name(), ast[current].check_func_num_param(), ast[current].check_type())){
+                    std::cout << "Function is called with the wrong number of arguments" << std::endl;
+                    exit(0);
+                }
+                current++;
+                break;
+
             case O_BR:
                 size_dv.push(decl_vars.size());
                 current++;
@@ -1614,4 +1674,43 @@ std::pair<int, int> find_var(const std::string& key, const dvar_t& decl_vars){
         }
     //}
     return {0, 0};
+}
+
+bool find_func_name(std::vector<AST> functions, std::string key, int type){
+    bool flag = false;
+    for (int i = 0; i < functions.size(); i++){
+        if (type == FUNC_DECL_VALID && key == functions[i].check_func_name()){
+            flag = true;
+            break;
+        }
+    }
+    if (flag){
+        return true;
+    } else return false;
+}
+
+bool find_func_num_param(std::vector<AST> functions, std::string name, int length, int type){
+    bool flag = false;
+    for (int i = 0; i < functions.size(); i++){
+        if (functions[i].check_func_name() == name && length != functions[i].check_func_num_param() && functions[i].check_type() == type){
+            flag = true;
+            break;
+        }
+    }
+    if (flag){
+        return true;
+    } else return false;
+}
+
+bool find_call_num_param(std::vector<AST> functions, std::string name, int length, int type){
+    bool flag = false;
+    for (int i = 0; i < functions.size(); i++){
+        if (functions[i].check_func_name() == name && length != functions[i].check_func_num_param() && functions[i].check_type() != type){
+            flag = true;
+            break;
+        }
+    }
+    if (flag){
+        return true;
+    } else return false;
 }
