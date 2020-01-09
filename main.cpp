@@ -5,8 +5,6 @@
 #include <climits>
 #include <stack>
 
-#define LABEL_OFFSET 1000
-
 enum tokens_list{
     O_PRN,          //0
     C_PRN,          //1
@@ -198,13 +196,32 @@ public:
             return;
         }
 
+        // Identifier and function call
         if (tokens[current].first == IDENTIFIER){
-            // Create AST node.
-            AST node;
-            node.set_type(VARREF);
-            node.set_var_name(tokens[current].second);
-            push_node(node);
-            return;
+            inc_cur();
+            if (tokens[current].first == O_PRN){
+                inc_cur();
+                if (tokens[current].first != C_PRN){
+                    parse_expr(tokens);
+                    while (tokens[current].first == COMA){
+                        inc_cur();
+                        parse_expr(tokens);
+                    }
+                    if (tokens[current].first != C_PRN){
+                        std::cout << "No close parentheses in function call\n";
+                        exit(0);
+                    }
+                    return;
+                }
+                return;
+            } else {
+                dec_cur();
+                AST node;
+                node.set_type(VARREF);
+                node.set_var_name(tokens[current].second);
+                push_node(node);
+                return;
+            }
         }
 
         if (tokens[current].first == ANEG || tokens[current].first == LNEG || tokens[current].first == COMPLEMENT){
@@ -734,35 +751,63 @@ public:
         }
         inc_cur();
 
+        if (tokens[current].first == KEYWORD){
+            inc_cur();
+
+            if (tokens[current].first != IDENTIFIER){
+                std::cout << "Wrong function parameter name1" << std::endl;
+                exit(0);
+            }
+            inc_cur();
+
+            while (tokens[current].first == COMA){
+                inc_cur();
+                if (tokens[current].first != KEYWORD){
+                    std::cout << "Wrong type of function parameter" << std::endl;
+                    exit(0);
+                }
+                inc_cur();
+
+                if (tokens[current].first != IDENTIFIER){
+                    std::cout << "Wrong function parameter name2" << std::endl;
+                    exit(0);
+                }
+                inc_cur();
+            }
+        }
+
         if (tokens[current].first != C_PRN){
             std::cout << "No close parentheses at function declaration" << std::endl;
             exit(0);
         }
         inc_cur();
 
-        if (tokens[current].first != O_BRACE){
-            std::cout << "No open brace at function declaration" << std::endl;
-            exit(0);
-        }
-        AST o_node;
-        o_node.set_type(O_BR);
-        push_node(o_node);
+        if (tokens[current].first == O_BRACE){
+            AST o_node;
+            o_node.set_type(O_BR);
+            push_node(o_node);
 
-        inc_cur();
-        parse_block_item(tokens);
-        inc_cur();
-        while (tokens[current].first != C_BRACE){
+            inc_cur();
             parse_block_item(tokens);
             inc_cur();
+            while (tokens[current].first != C_BRACE){
+                parse_block_item(tokens);
+                inc_cur();
+            }
+            AST c_node;
+            c_node.set_type(C_BR);
+            push_node(c_node);
+        } else {
+            if (tokens[current].first != SEMI){
+                std::cout << "No semicolon after function declaration" << std::endl;
+                exit(0);
+            }
         }
-        AST c_node;
-        c_node.set_type(C_BR);
-        push_node(c_node);
     }
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage8_tests\invalid\out_of_scope_do_while.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage9_tests\valid\variable_as_arg.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
