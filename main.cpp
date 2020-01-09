@@ -41,7 +41,8 @@ enum tokens_list{
     DO,             //30
     WHILE,          //31
     BREAK,          //32
-    CONTINUE        //33
+    CONTINUE,       //33
+    COMA
 };
 
 enum types_list {
@@ -374,12 +375,12 @@ public:
         }
     }
 
-    void parse_expr_opt(const tokens_t& tokens){
+    bool parse_expr_opt(const tokens_t& tokens){
         if (tokens[current].first == IDENTIFIER || tokens[current].first == I_NUM ||
             tokens[current].first == ANEG || tokens[current].first == LNEG || tokens[current].first == COMPLEMENT ||
             tokens[current].first == O_PRN){
             parse_expr(tokens);
-        } else return;
+        } else return true;
     }
 
     void parse_statement(const tokens_t& tokens){
@@ -485,15 +486,18 @@ public:
             push_node(node_while_label);
 
             inc_cur();
-            parse_expr_opt(tokens);
+            bool semi = parse_expr_opt(tokens);
             if (tokens[current].first != SEMI){
                 std::cout << "No semicolon after controlling expression in FOR" << std::endl;
                 exit(0);
             }
 
-            AST node_while_expr;
-            node_while_expr.set_type(WHILE_EXPR);
-            push_node(node_while_expr);
+            if (!semi){
+                AST node_while_expr;
+                node_while_expr.set_type(WHILE_EXPR);
+                push_node(node_while_expr);
+            }
+
 
             size_t length = nodes.size();
 
@@ -758,7 +762,7 @@ public:
 };
 
 int main (int argc, char ** argv){
-    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage8_tests\valid\break.c)");
+    std::string input = read_file(R"(D:\Winderton\Compiler_cvv\stage8_tests\invalid\out_of_scope_do_while.c)");
     tokens_t tokens = lexer(input);
     std::cout << "Lexer: no errors\n";
     out_tokens(tokens);
@@ -1246,6 +1250,15 @@ tokens_t lexer(const std::string& input){
             std::string value;
             value += symbol;
             tokens.emplace_back(C_BRACE, value);
+            symbol = input[++current];
+            continue;
+        }
+
+        // Coma
+        if (symbol == ','){
+            std::string value;
+            value += symbol;
+            tokens.emplace_back(COMA, value);
             symbol = input[++current];
             continue;
         }
